@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>아프리카 탐험대: 대륙 지리 도감</title>
+    <!-- 정밀 지도 렌더링을 위한 D3.js 라이브러리 로드 -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        :root {
+            --bg-main: #1e272e;
+            --bg-card: #2f3640;
+            --text-main: #f5f6fa;
+            --primary: #ff9f43;
+            --success: #1dd1a1;
+            --danger: #ee5253;
+            --accent: #48dbfb;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            padding: 40px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        header h1 {
+            font-size: 2.8rem;
+            color: var(--primary);
+            font-weight: 800;
+            letter-spacing: -1px;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            color: #a4b0be;
+            font-size: 1.1rem;
+        }
+
+        /* 탭 네비게이션 */
+        .nav-tabs {
+            display: flex;
+            background: var(--bg-card);
+            padding: 8px;
+            border-radius: 16px;
+            list-style: none;
+            margin-bottom: 40px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .tab-item {
+            padding: 14px 28px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 1.05rem;
+            color: #718093;
+            border-radius: 12px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .tab-item:hover { color: var(--text-main); }
+        .tab-item.active {
+            background: var(--primary);
+            color: var(--bg-main);
+            box-shadow: 0 6px 20px rgba(255, 159, 67, 0.4);
+        }
+
+        /* 콘텐츠 섹션 카드 */
+        .content-section {
+            display: none;
+            background: var(--bg-card);
+            padding: 40px;
+            border-radius: 24px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+            width: 100%;
+            max-width: 1150px;
+            min-height: 650px;
+            border: 1px solid rgba(255,255,255,0.05);
+            animation: fadeIn 0.4s ease-in-out;
+            position: relative;
+        }
+
+        .content-section.active { display: block; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        h2 { font-size: 1.6rem; margin-bottom: 24px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+        .progress-text { font-size: 1rem; color: var(--primary); font-weight: bold; margin-bottom: 10px; text-align: right; width: 100%; max-width: 600px; }
+
+        /* 1단계 퀴즈 */
+        .quiz-container { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
+        .quiz-box { background: rgba(255,255,255,0.03); border: 2px solid rgba(255,255,255,0.1); padding: 40px; border-radius: 20px; font-size: 1.4rem; font-weight: 600; width: 100%; max-width: 600px; text-align: center; margin-bottom: 30px; line-height: 1.6; }
+        .btn-container { display: flex; gap: 25px; width: 100%; max-width: 500px; }
+        .quiz-btn { flex: 1; padding: 24px; font-size: 2rem; font-weight: 800; border: none; border-radius: 18px; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
+        .btn-o { background: var(--danger); color: white; }
+        .btn-x { background: var(--accent); color: var(--bg-main); }
+        .quiz-btn:hover { transform: translateY(-4px); }
+
+        /* 2단계 드래그 게임 */
+        .game-layout { display: flex; gap: 40px; justify-content: center; align-items: center; margin-top: 20px;}
+        .drag-items { display: flex; flex-direction: column; gap: 15px; z-index: 5; }
+        .drag-item { padding: 16px 24px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--text-main); border-radius: 14px; cursor: grab; text-align: center; font-weight: 700; transition: all 0.2s; }
+        .drag-item:hover { background: var(--primary); color: var(--bg-main); }
+        .map-container { position: relative; width: 450px; height: 480px; background: #161d24; border-radius: 24px; border: 1px solid rgba(255,255,255,0.1); overflow: hidden; box-shadow: inset 0 4px 20px rgba(0,0,0,0.5);}
+        .drop-zone { position: absolute; width: 110px; height: 50px; border: 2px dashed #a4b0be; background: rgba(30, 39, 46, 0.85); border-radius: 10px; display: flex; justify-content: center; align-items: center; font-size: 0.85rem; font-weight: 700; color: #dcdde1; transition: all 0.3s; z-index: 10; }
+        .drop-zone.hovered { border-color: var(--success); background: rgba(29, 209, 161, 0.2); }
+        .drop-zone.correct { background: var(--success); color: white; border-style: solid; }
+
+        /* 3단계 대륙 횡단 미션 */
+        .country-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; width: 100%; max-width: 600px; margin-top: 10px; }
+        .country-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); padding: 25px; border-radius: 16px; text-align: center; cursor: pointer; font-weight: 700; font-size: 1.1rem; transition: all 0.2s; }
+        .country-card:hover { border-color: var(--primary); background: rgba(255, 159, 67, 0.1); transform: translateY(-4px); }
+
+        /* 4단계 정밀 지도 도감 */
+        .encyclopedia-layout { display: flex; gap: 35px; align-items: flex-start; position: relative; }
+        .interactive-map { width: 520px; height: 560px; background: #161d24; border-radius: 24px; border: 1px solid rgba(255,255,255,0.1); overflow: hidden; position: relative; box-shadow: inset 0 4px 20px rgba(0,0,0,0.5); }
+        
+        /* D3.js 렌더링 지도 패스 디자인 */
+        .country-path { stroke: #161d24; stroke-width: 0.8px; cursor: pointer; transition: filter 0.2s, stroke 0.2s; }
+        .country-path:hover { filter: brightness(1.25) drop-shadow(0px 0px 5px rgba(255, 255, 255, 0.3)); stroke: #fff; stroke-width: 1px; }
+        .country-path.selected { filter: brightness(1.4) drop-shadow(0px 0px 8px rgba(255, 255, 255, 0.6)) !important; stroke: #fff !important; stroke-width: 1.5px !important; }
+        .base-path { fill: #3d4652; stroke: #161d24; stroke-width: 0.8px; } /* 2단계용 비활성 지도 */
+
+        /* 정보 상세 카드 */
+        .info-card { flex: 1; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.1); border-radius: 24px; padding: 30px; min-height: 560px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        .info-header { display: flex; align-items: center; gap: 20px; border-bottom: 2px solid rgba(255,255,255,0.1); padding-bottom: 20px; margin-bottom: 25px; }
+        
+        /* 고화질 공식 국기 이미지 박스 */
+        .info-flag-img { width: 100px; height: 65px; object-fit: cover; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.15); background: #23272a; }
+        .info-title h3 { font-size: 2rem; color: var(--text-main); font-weight: 800; }
+        .info-title p { color: #a4b0be; font-size: 0.95rem; margin-top: 2px; }
+        
+        .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+        .info-item { background: rgba(0,0,0,0.25); padding: 18px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.03); }
+        .info-label { font-size: 0.85rem; color: var(--primary); font-weight: bold; margin-bottom: 8px; letter-spacing: 0.5px; }
+        .info-value { font-size: 1.1rem; font-weight: 600; color: #f5f6fa; line-height: 1.4; }
+
+        /* 로딩 오버레이 */
+        .loading-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(30, 39, 46, 0.95); border-radius: 24px; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 50; backdrop-filter: blur(5px); }
+        .spinner { border: 4px solid rgba(255, 159, 67, 0.2); border-top: 4px solid var(--primary); border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin-bottom: 20px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* 모달 팝업 */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); backdrop-filter: blur(8px); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-content { background: var(--bg-card); border: 2px solid rgba(255,255,255,0.1); padding: 40px; border-radius: 24px; text-align: center; max-width: 500px; width: 90%; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+        .modal-status { font-size: 3rem; margin-bottom: 15px; }
+        .modal-title { font-size: 1.8rem; font-weight: 800; margin-bottom: 15px; }
+        .modal-desc { color: #a4b0be; line-height: 1.6; margin-bottom: 30px; font-size: 1.1rem; }
+        .modal-close { background: var(--primary); color: var(--bg-main); padding: 14px 35px; border: none; border-radius: 12px; font-weight: 700; font-size: 1rem; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>🌍 아프리카 탐험대</h1>
+        <p>중학교 1학년 사회 • 정밀 지리 데이터 기반 국가 지형 도감</p>
+    </header>
+
+    <ul class="nav-tabs">
+        <li class="tab-item active" onclick="switchTab('quiz-tab', this)">1단계: 오해와 진실</li>
+        <li class="tab-item" onclick="switchTab('map-tab', this)">2단계: 랜드마크 찾기</li>
+        <li class="tab-item" onclick="switchTab('train-tab', this)">3단계: 대륙 횡단 미션</li>
+        <li class="tab-item" onclick="switchTab('guide-tab', this)">4단계: 국가별 상세 도감</li>
+    </ul>
+
+    <!-- 1단계 퀴즈 -->
+    <section id="quiz-tab" class="content-section active">
+        <h2>🧭 아프리카에 대한 오해와 진실 퀴즈</h2>
+        <div class="quiz-container">
+            <div class="progress-text" id="quiz-progress">문제 1 / 3</div>
+            <div class="quiz-box" id="quiz-question-box">Q1. 아프리카는 하나의 거대한 국가이다?</div>
+            <div class="btn-container">
+                <button class="quiz-btn btn-o" onclick="handleQuizClick(true)">O</button>
+                <button class="quiz-btn btn-x" onclick="handleQuizClick(false)">X</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- 2단계 랜드마크 -->
+    <section id="map-tab" class="content-section">
+        <!-- 2단계 로딩 스크린 -->
+        <div class="loading-overlay" id="loading-2">
+            <div class="spinner"></div>
+            <p>정밀 지도 데이터를 구성 중입니다...</p>
+        </div>
+        <h2>🗺️ 주요 지형 랜드마크 배치하기</h2>
+        <p style="color:#a4b0be; margin-bottom:15px; font-size:0.95rem;">좌측의 지형 카드를 지도의 올바른 방위에 드래그하여 배치하세요.</p>
+        <div class="game-layout">
+            <div class="drag-items">
+                <div class="drag-item" draggable="true" id="sahara" ondragstart="drag(event)">사하라 사막</div>
+                <div class="drag-item" draggable="true" id="nile" ondragstart="drag(event)">나일 강</div>
+                <div class="drag-item" draggable="true" id="kili" ondragstart="drag(event)">킬리만자로산</div>
+            </div>
+            <!-- D3로 그려질 베이스 지도 컨테이너 -->
+            <div class="map-container" id="d3-map-container-2">
+                <div class="drop-zone" id="zone-sahara" style="top: 80px; left: 110px;" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)" ondrop="drop(event, 'sahara')">북부 사막</div>
+                <div class="drop-zone" id="zone-nile" style="top: 100px; left: 260px;" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)" ondrop="drop(event, 'nile')">북동부 하천</div>
+                <div class="drop-zone" id="zone-kili" style="top: 270px; left: 300px;" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)" ondrop="drop(event, 'kili')">동부 고산지대</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 3단계 대륙 횡단 -->
+    <section id="train-tab" class="content-section">
+        <h2>🚂 특징별 아프리카 국가 탐색</h2>
+        <div class="quiz-container">
+            <div class="progress-text" id="train-progress">미션 1 / 3</div>
+            <div class="quiz-box" id="train-question-box">문제 로딩 중...</div>
+            <div class="country-grid" id="train-options-container"></div>
+        </div>
+    </section>
+
+    <!-- 4단계 지도 도감 -->
+    <section id="guide-tab" class="content-section">
+        <!-- 4단계 로딩 스크린 -->
+        <div class="loading-overlay" id="loading-4">
+            <div class="spinner"></div>
+            <p>세계 지도(GeoJSON) 데이터베이스와 연동 중입니다...</p>
+        </div>
+        <h2>📊 메르카토르 도법 기준 정밀 국가 지형 도감</h2>
+        <p style="color:#a4b0be; margin-bottom:20px; font-size:0.95rem;">정밀 지리 데이터를 활용하여 아프리카 국가들의 실제 경계와 지형을 구현했습니다. 국가를 클릭해 상세 정보를 확인하세요.</p>
+        
+        <div class="encyclopedia-layout">
+            <!-- D3.js 연동 인터랙티브 지도 캔버스 -->
+            <div class="interactive-map" id="d3-map-container-4"></div>
+
+            <div class="info-card" id="country-info-panel">
+                <div style="text-align: center; color: #718093; padding-top: 220px; font-size: 1.2rem; font-weight: bold;">
+                    왼쪽 정밀 아프리카 지도에서 탐색할 국가를 클릭해 주세요.<br>
+                    <span style="font-size:0.9rem; color:#57606f; font-weight:normal; margin-top:10px; display:inline-block;">(아프리카 전역 국경선 및 공인 국기 데이터베이스 연동 완료)</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 모달 알림 -->
+    <div id="resultModal" class="modal">
+        <div class="modal-content">
+            <div id="modalIcon" class="modal-status">🎯</div>
+            <div id="modalTitle" class="modal-title">정답입니다!</div>
+            <div id="modalDesc" class="modal-desc">설명란</div>
+            <button class="modal-close" onclick="closeModal()">다음 단계로</button>
+        </div>
+    </div>
+
+    <script>
+        // --- 네비게이션 제어 ---
+        function switchTab(tabId, element) {
+            document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            element.classList.add('active');
+        }
+
+        // --- 1단계 및 3단계 퀴즈 데이터 ---
+        const quizData = [
+            { q: "Q1. 아프리카는 단일 정부로 구성된 하나의 거대한 국가이다?", a: false, desc: "아프리카는 하나의 국가가 아니라 54개의 개별 독립국으로 구성된 광활한 '대륙'입니다." },
+            { q: "Q2. 아프리카 대륙은 1년 내내 더운 열대 기후만 나타난다?", a: false, desc: "사하라 사막 중심의 건조 기후, 대륙 양 끝단의 온화한 지중해성 기후, 고산 지대의 상춘 기후 등 매우 복합적인 기후대를 형성합니다." },
+            { q: "Q3. 아프리카 대륙 한가운데를 관통하는 위선은 적도(0°)이다?", a: true, desc: "적도가 대륙 한가운데를 가로지르기 때문에 대륙 북반부와 남반부의 계절 양상이 대칭을 이루어 반대로 나타납니다." }
+        ];
+
+        const trainData = [
+            { q: "미션 1: 고대 나일강 하구에 위치하며 아프리카와 아시아를 잇는 수에즈 운하를 보유한 북동부 국가는?", options: ["이집트", "케냐", "모로코"], correct: "이집트", desc: "이집트는 문명의 발상지이자 지중해와 홍해를 잇는 지리적 길목으로, 아프리카의 핵심 요충지입니다." },
+            { q: "미션 2: 아프리카 최남단에 위치하며, 희망봉과 풍부한 지하자원으로 아프리카 경제를 선도하는 국가는?", options: ["알제리", "남아프리카공화국", "탄자니아"], correct: "남아프리카공화국", desc: "남아프리카공화국은 경제 체계가 고도로 발달했으며, 독특한 펭귄 서식지 등 다채로운 생태 관광 자원을 보유하고 있습니다." },
+            { q: "미션 3: 바오밥 나무 군락과 독자적인 진화 생태계를 유지하고 있는 아프리카 동부 인도양의 거대한 섬나라는?", options: ["마다가스카르", "나이지리아", "에티오피아"], correct: "마다가스카르", desc: "마다가스카르는 세계에서 네 번째로 큰 섬으로, 대륙과 오랜 기간 분리된 환경 덕분에 고유 생물종 비율이 극히 높습니다." }
+        ];
+
+        let currentQuizIdx = 0, currentTrainIdx = 0, activeQuizType = ""; 
+
+        function handleQuizClick(userAns) {
+            activeQuizType = "quiz";
+            const currentItem = quizData[currentQuizIdx];
+            showModal(userAns === currentItem.a, currentItem.desc);
+        }
+
+        function renderTrainQuiz() {
+            const currentItem = trainData[currentTrainIdx];
+            document.getElementById('train-progress').innerText = `미션 ${currentTrainIdx + 1} / 3`;
+            document.getElementById('train-question-box').innerText = currentItem.q;
+            
+            const grid = document.getElementById('train-options-container');
+            grid.innerHTML = "";
+            currentItem.options.forEach(opt => {
+                const card = document.createElement('div');
+                card.className = "country-card";
+                card.innerText = opt;
+                card.onclick = () => {
+                    activeQuizType = "train";
+                    showModal(opt === currentItem.correct, currentItem.desc);
+                };
+                grid.appendChild(card);
+            });
+        }
+
+        function showModal(isCorrect, desc) {
+            const icon = document.getElementById('modalIcon');
+            const title = document.getElementById('modalTitle');
+            if (isCorrect) {
+                icon.innerText = activeQuizType === "train" ? "🚂" : "🎉";
+                icon.style.color = activeQuizType === "train" ? "var(--accent)" : "var(--success)";
+                title.innerText = activeQuizType === "train" ? "미션 완수!" : "정답입니다!";
+            } else {
+                icon.innerText = "❌";
+                icon.style.color = "var(--danger)";
+                title.innerText = "다시 확인해 볼까요?";
+            }
+            document.getElementById('modalDesc').innerHTML = desc;
+            document.getElementById('resultModal').style.display = "flex";
+        }
+
+        function closeModal() {
+            document.getElementById('resultModal').style.display = "none";
+            if (activeQuizType === "quiz") {
+                if (currentQuizIdx < quizData.length - 1) {
+                    currentQuizIdx++;
+                    document.getElementById('quiz-progress').innerText = `문제 ${currentQuizIdx + 1} / 3`;
+                    document.getElementById('quiz-question-box').innerText = quizData[currentQuizIdx].q;
+                } else {
+                    alert("1단계 지리 기초 인지 탐구를 완수했습니다."); currentQuizIdx = 0;
+                }
+            } else if (activeQuizType === "train") {
+                if (currentTrainIdx < trainData.length - 1) {
+                    currentTrainIdx++; renderTrainQuiz();
+                } else {
+                    alert("3단계 권역별 탐색 미션을 모두 완료했습니다."); currentTrainIdx = 0; renderTrainQuiz();
+                }
+            }
+        }
+
+        // --- 2단계 드래그 제어 ---
+        function allowDrop(ev) { ev.preventDefault(); }
+        function drag(ev) { ev.dataTransfer.setData("text", ev.target.id); }
+        function dragEnter(ev) { ev.target.classList.add('hovered'); }
+        function dragLeave(ev) { ev.target.classList.remove('hovered'); }
+        function drop(ev, expectedId) {
+            ev.preventDefault();
+            ev.target.classList.remove('hovered');
+            const data = ev.dataTransfer.getData("text");
+            if (data === expectedId) {
+                const draggedElement = document.getElementById(data);
+                ev.target.classList.add('correct');
+                ev.target.innerText = draggedElement.innerText + " 완수";
+                draggedElement.style.visibility = 'hidden';
+            } else {
+                alert("지형 랜드마크의 올바른 지리적 방위를 다시 연상해 보세요.");
+            }
+        }
+
+        // --- 위키미디어 공인 국기 및 국가 지리 데이터베이스 (ISO-3A 기준) ---
+        const countryDb = {
+            "DZA": { name: "알제리", flag: "https://upload.wikimedia.org/wikipedia/commons/7/77/Flag_of_Algeria.svg", area: "2,381,741 ㎢", pop: "약 4,600만 명", climate: "지중해성 기후(북부 연안), 스텝 및 사막 기후(남부)" },
+            "LBY": { name: "리비아", flag: "https://upload.wikimedia.org/wikipedia/commons/0/05/Flag_of_Libya.svg", area: "1,759,540 ㎢", pop: "약 690만 명", climate: "아열대 건조 사막 기후" },
+            "EGY": { name: "이집트", flag: "https://upload.wikimedia.org/wikipedia/commons/f/fe/Flag_of_Egypt.svg", area: "1,001,450 ㎢", pop: "약 1억 1,400만 명", climate: "건조 사막 및 지중해성 기후" },
+            "MAR": { name: "모로코", flag: "https://upload.wikimedia.org/wikipedia/commons/2/2c/Flag_of_Morocco.svg", area: "446,550 ㎢", pop: "약 3,800만 명", climate: "지중해성 기후 및 건조 산악 기후" },
+            "TUN": { name: "튀니지", flag: "https://upload.wikimedia.org/wikipedia/commons/c/ce/Flag_of_Tunisia.svg", area: "163,610 ㎢", pop: "약 1,250만 명", climate: "아열대 지중해성 기후" },
+            "SDN": { name: "수단", flag: "https://upload.wikimedia.org/wikipedia/commons/0/01/Flag_of_Sudan.svg", area: "1,861,484 ㎢", pop: "약 4,900만 명", climate: "열대 사막 및 건조 사바나 기후" },
+            "MRT": { name: "모리타니", flag: "https://upload.wikimedia.org/wikipedia/commons/4/43/Flag_of_Mauritania.svg", area: "1,030,700 ㎢", pop: "약 490만 명", climate: "고온 건조 열대 사막 기후" },
+            "MLI": { name: "말리", flag: "https://upload.wikimedia.org/wikipedia/commons/9/92/Flag_of_Mali.svg", area: "1,240,192 ㎢", pop: "약 2,400만 명", climate: "사막 기후 및 열대 사바나 기후" },
+            "NER": { name: "니제르", flag: "https://upload.wikimedia.org/wikipedia/commons/f/f4/Flag_of_Niger.svg", area: "1,267,000 ㎢", pop: "약 2,700만 명", climate: "사막 기후 및 반건조 스텝 기후" },
+            "TCD": { name: "차드", flag: "https://upload.wikimedia.org/wikipedia/commons/4/4b/Flag_of_Chad.svg", area: "1,284,000 ㎢", pop: "약 1,850만 명", climate: "북부 사막 기후 및 남부 열대 기후" },
+            "NGA": { name: "나이지리아", flag: "https://upload.wikimedia.org/wikipedia/commons/7/79/Flag_of_Nigeria.svg", area: "923,768 ㎢", pop: "약 2억 3,000만 명", climate: "열대 사바나 및 고온다습 열대우림 기후" },
+            "SEN": { name: "세네갈", flag: "https://upload.wikimedia.org/wikipedia/commons/f/fd/Flag_of_Senegal.svg", area: "196,722 ㎢", pop: "약 1,800만 명", climate: "사바나 기후" },
+            "CIV": { name: "코트디부아르", flag: "https://upload.wikimedia.org/wikipedia/commons/f/fe/Flag_of_Ivory_Coast.svg", area: "322,463 ㎢", pop: "약 2,900만 명", climate: "남부 열대우림 및 북부 사바나 기후" },
+            "GHA": { name: "가나", flag: "https://upload.wikimedia.org/wikipedia/commons/1/19/Flag_of_Ghana.svg", area: "238,533 ㎢", pop: "약 3,400만 명", climate: "열대 사바나 기후" },
+            "ETH": { name: "에티오피아", flag: "https://upload.wikimedia.org/wikipedia/commons/7/71/Flag_of_Ethiopia.svg", area: "1,104,300 ㎢", pop: "약 1억 2,900만 명", climate: "연중 온화한 열대 고산 기후" },
+            "SOM": { name: "소말리아", flag: "https://upload.wikimedia.org/wikipedia/commons/a/a0/Flag_of_Somalia.svg", area: "637,657 ㎢", pop: "약 1,850만 명", climate: "건조 사막 및 반건조 기후" },
+            "KEN": { name: "케냐", flag: "https://upload.wikimedia.org/wikipedia/commons/4/49/Flag_of_Kenya.svg", area: "580,367 ㎢", pop: "약 5,600만 명", climate: "적도 지대 고산 아열대 기후" },
+            "TZA": { name: "탄자니아", flag: "https://upload.wikimedia.org/wikipedia/commons/3/38/Flag_of_Tanzania.svg", area: "947,300 ㎢", pop: "약 6,800만 명", climate: "열대 사바나 및 해안 열대 기후" },
+            "CMR": { name: "카메룬", flag: "https://upload.wikimedia.org/wikipedia/commons/4/4f/Flag_of_Cameroon.svg", area: "475,442 ㎢", pop: "약 2,900만 명", climate: "해안 열대우림에서 북부 반건조 기후까지 다양" },
+            "COD": { name: "콩고민주공화국", flag: "https://upload.wikimedia.org/wikipedia/commons/6/6f/Flag_of_the_Democratic_Republic_of_the_Congo.svg", area: "2,344,858 ㎢", pop: "약 1억 200만 명", climate: "고온다습한 적도 열대 우림 기후" },
+            "AGO": { name: "앙골라", flag: "https://upload.wikimedia.org/wikipedia/commons/9/9d/Flag_of_Angola.svg", area: "1,246,700 ㎢", pop: "약 3,700만 명", climate: "열대 사바나 및 남서부 반건조 기후" },
+            "ZMB": { name: "잠비아", flag: "https://upload.wikimedia.org/wikipedia/commons/0/06/Flag_of_Zambia.svg", area: "752,618 ㎢", pop: "약 2,100만 명", climate: "고원지대 온대 사바나 기후" },
+            "NAM": { name: "나미비아", flag: "https://upload.wikimedia.org/wikipedia/commons/0/00/Flag_of_Namibia.svg", area: "824,292 ㎢", pop: "약 265만 명", climate: "해안 건조 사막 및 스텝 기후" },
+            "BWA": { name: "보츠와나", flag: "https://upload.wikimedia.org/wikipedia/commons/f/fa/Flag_of_Botswana.svg", area: "581,730 ㎢", pop: "약 270만 명", climate: "반건조 스텝 및 칼라하리 사막 기후" },
+            "ZAF": { name: "남아프리카공화국", flag: "https://upload.wikimedia.org/wikipedia/commons/a/af/Flag_of_South_Africa.svg", area: "1,221,037 ㎢", pop: "약 6,100만 명", climate: "온대 지중해성 기후(남서부) 및 아열대 기후" },
+            "MDG": { name: "마다가스카르", flag: "https://upload.wikimedia.org/wikipedia/commons/b/bc/Flag_of_Madagascar.svg", area: "587,041 ㎢", pop: "약 3,100만 명", climate: "동부 열대우림 및 서부 사바나 기후" },
+            "SSD": { name: "남수단", flag: "https://upload.wikimedia.org/wikipedia/commons/7/7a/Flag_of_South_Sudan.svg", area: "644,329 ㎢", pop: "약 1,100만 명", climate: "열대 사바나 기후" },
+            "ZWE": { name: "짐바브웨", flag: "https://upload.wikimedia.org/wikipedia/commons/6/6a/Flag_of_Zimbabwe.svg", area: "390,757 ㎢", pop: "약 1,700만 명", climate: "열대 사바나 기후" },
+            "UGA": { name: "우간다", flag: "https://upload.wikimedia.org/wikipedia/commons/4/4e/Flag_of_Uganda.svg", area: "241,038 ㎢", pop: "약 4,900만 명", climate: "열대 고산 기후" },
+            "BFA": { name: "부르키나파소", flag: "https://upload.wikimedia.org/wikipedia/commons/3/31/Flag_of_Burkina_Faso.svg", area: "274,200 ㎢", pop: "약 2,300만 명", climate: "건조 사바나 기후" },
+            "MOZ": { name: "모잠비크", flag: "https://upload.wikimedia.org/wikipedia/commons/d/d0/Flag_of_Mozambique.svg", area: "801,590 ㎢", pop: "약 3,400만 명", climate: "해양성 아열대 및 사바나 기후" },
+            "BEN": { name: "베냉", flag: "https://upload.wikimedia.org/wikipedia/commons/0/0a/Flag_of_Benin.svg", area: "112,622 ㎢", pop: "약 1,300만 명", climate: "열대 사바나 기후" },
+            "BDI": { name: "부룬디", flag: "https://upload.wikimedia.org/wikipedia/commons/5/50/Flag_of_Burundi.svg", area: "27,830 ㎢", pop: "약 1,300만 명", climate: "온대 고산 기후 및 사바나 기후" },
+            "CPV": { name: "카보베르데", flag: "https://upload.wikimedia.org/wikipedia/commons/3/38/Flag_of_Cape_Verde.svg", area: "4,033 ㎢", pop: "약 60만 명", climate: "건조 아열대 해양성 기후" },
+            "CAF": { name: "중앙아프리카공화국", flag: "https://upload.wikimedia.org/wikipedia/commons/6/6f/Flag_of_the_Central_African_Republic.svg", area: "622,984 ㎢", pop: "약 550만 명", climate: "열대 사바나 및 우림 기후" },
+            "COM": { name: "코모로", flag: "https://upload.wikimedia.org/wikipedia/commons/9/94/Flag_of_the_Comoros.svg", area: "2,235 ㎢", pop: "약 85만 명", climate: "열대 해양성 기후" },
+            "DJI": { name: "지부티", flag: "https://upload.wikimedia.org/wikipedia/commons/3/34/Flag_of_Djibouti.svg", area: "23,200 ㎢", pop: "약 110만 명", climate: "열대 사막 기후" },
+            "GNQ": { name: "적도기니", flag: "https://upload.wikimedia.org/wikipedia/commons/3/31/Flag_of_Equatorial_Guinea.svg", area: "28,051 ㎢", pop: "약 170만 명", climate: "열대 우림 기후" },
+            "ERI": { name: "에리트레아", flag: "https://upload.wikimedia.org/wikipedia/commons/2/29/Flag_of_Eritrea.svg", area: "117,600 ㎢", pop: "약 370만 명", climate: "사막 및 반건조 기후" },
+            "SWZ": { name: "에스와티니", flag: "https://upload.wikimedia.org/wikipedia/commons/f/fb/Flag_of_Eswatini.svg", area: "17,364 ㎢", pop: "약 120만 명", climate: "아열대 및 온대 기후" },
+            "GAB": { name: "가봉", flag: "https://upload.wikimedia.org/wikipedia/commons/0/04/Flag_of_Gabon.svg", area: "267,668 ㎢", pop: "약 240만 명", climate: "고온 다습한 열대 우림 기후" },
+            "GMB": { name: "감비아", flag: "https://upload.wikimedia.org/wikipedia/commons/7/77/Flag_of_The_Gambia.svg", area: "11,300 ㎢", pop: "약 270만 명", climate: "열대 사바나 기후" },
+            "GIN": { name: "기니", flag: "https://upload.wikimedia.org/wikipedia/commons/e/ed/Flag_of_Guinea.svg", area: "245,857 ㎢", pop: "약 1,400만 명", climate: "열대 몬순 기후" },
+            "GNB": { name: "기니비사우", flag: "https://upload.wikimedia.org/wikipedia/commons/0/01/Flag_of_Guinea-Bissau.svg", area: "36,125 ㎢", pop: "약 210만 명", climate: "열대 몬순 기후" },
+            "LSO": { name: "레소토", flag: "https://upload.wikimedia.org/wikipedia/commons/4/4a/Flag_of_Lesotho.svg", area: "30,355 ㎢", pop: "약 230만 명", climate: "온대 고산 기후" },
+            "LBR": { name: "라이베리아", flag: "https://upload.wikimedia.org/wikipedia/commons/b/b8/Flag_of_Liberia.svg", area: "111,369 ㎢", pop: "약 540만 명", climate: "열대 우림 기후" },
+            "MWI": { name: "말라위", flag: "https://upload.wikimedia.org/wikipedia/commons/d/d1/Flag_of_Malawi.svg", area: "118,484 ㎢", pop: "약 2,100만 명", climate: "열대 사바나 기후" },
+            "MUS": { name: "모리셔스", flag: "https://upload.wikimedia.org/wikipedia/commons/7/77/Flag_of_Mauritius.svg", area: "2,040 ㎢", pop: "약 130만 명", climate: "해양성 아열대 기후" },
+            "COG": { name: "콩고 공화국", flag: "https://upload.wikimedia.org/wikipedia/commons/9/92/Flag_of_the_Republic_of_the_Congo.svg", area: "342,000 ㎢", pop: "약 610만 명", climate: "열대 우림 및 사바나 기후" },
+            "RWA": { name: "르완다", flag: "https://upload.wikimedia.org/wikipedia/commons/1/17/Flag_of_Rwanda.svg", area: "26,338 ㎢", pop: "약 1,400만 명", climate: "온대 고산 기후" },
+            "STP": { name: "상투메 프린시페", flag: "https://upload.wikimedia.org/wikipedia/commons/0/0a/Flag_of_S%C3%A3o_Tom%C3%A9_and_Pr%C3%ADncipe.svg", area: "964 ㎢", pop: "약 23만 명", climate: "열대 우림 기후" },
+            "SYC": { name: "세이셸", flag: "https://upload.wikimedia.org/wikipedia/commons/f/fc/Flag_of_Seychelles.svg", area: "452 ㎢", pop: "약 10만 명", climate: "열대 해양성 기후" },
+            "SLE": { name: "시에라리온", flag: "https://upload.wikimedia.org/wikipedia/commons/1/17/Flag_of_Sierra_Leone.svg", area: "71,740 ㎢", pop: "약 880만 명", climate: "열대 몬순 기후" },
+            "TGO": { name: "토고", flag: "https://upload.wikimedia.org/wikipedia/commons/6/68/Flag_of_Togo.svg", area: "56,785 ㎢", pop: "약 900만 명", climate: "열대 사바나 기후" },
+            "ESH": { name: "서사하라", flag: "https://upload.wikimedia.org/wikipedia/commons/2/26/Flag_of_the_Sahrawi_Arab_Democratic_Republic.svg", area: "266,000 ㎢", pop: "약 60만 명", climate: "해안 사막 기후" }
+        };
+
+        // --- D3.js 기반 실제 위경도 매핑 지리 엔진 로직 ---
+        function initD3Map() {
+            // 아프리카 지역을 포괄하는 ISO3 국가 코드 필터 목록
+            const africaIso = ["DZA","AGO","BEN","BWA","BFA","BDI","CMR","CPV","CAF","TCD","COM","COD","DJI","EGY","GNQ","ERI","SWZ","ETH","GAB","GMB","GHA","GIN","GNB","CIV","KEN","LSO","LBR","LBY","MDG","MWI","MLI","MRT","MUS","MAR","MOZ","NAM","NER","NGA","COG","RWA","STP","SEN","SYC","SLE","SOM","ZAF","SSD","SDN","TZA","TGO","TUN","UGA","ZMB","ZWE","ESH"];
+
+            // 공인된 국가별 경계 데이터(GeoJSON)를 CDN을 통해 안전하게 Fetch
+            d3.json("https://cdn.jsdelivr.net/gh/johan/world.geo.json@master/countries.geo.json")
+                .then(function(data) {
+                    const africaFeatures = data.features.filter(d => africaIso.includes(d.id));
+
+                    // [ 2단계 베이스 맵 렌더링 ] - 450x480 사이즈
+                    const projection2 = d3.geoMercator().center([15, 2]).scale(240).translate([225, 240]);
+                    const path2 = d3.geoPath().projection(projection2);
+                    
+                    const svg2 = d3.select("#d3-map-container-2").insert("svg", ":first-child")
+                        .attr("width", "100%").attr("height", "100%").attr("viewBox", "0 0 450 480");
+
+                    svg2.append("g").selectAll("path")
+                        .data(africaFeatures).join("path")
+                        .attr("d", path2).attr("class", "base-path");
+
+                    // 교육을 위한 정밀 적도선(0도) 드로잉
+                    svg2.append("line")
+                        .attr("x1", 0).attr("y1", projection2([0, 0])[1])
+                        .attr("x2", 450).attr("y2", projection2([0, 0])[1])
+                        .attr("stroke", "#ee5253").attr("stroke-dasharray", "4").attr("stroke-width", 2);
+                    svg2.append("text")
+                        .attr("x", 360).attr("y", projection2([0, 0])[1] - 8)
+                        .attr("fill", "#ee5253").attr("font-size", "14px").attr("font-weight", "bold").text("적도 (0°)");
+
+                    document.getElementById('loading-2').style.display = 'none';
+
+                    // 6가지 구분용 컬러 팔레트 (다크 테마에 어울리는 화사한 색상)
+                    const mapColors = ["#FF9F43", "#1DD1A1", "#54A0FF", "#FF6B6B", "#F368E0", "#00D2D3"];
+
+                    // [ 4단계 인터랙티브 도감 맵 렌더링 ] - 520x560 사이즈
+                    const projection4 = d3.geoMercator().center([18, 2]).scale(280).translate([260, 280]);
+                    const path4 = d3.geoPath().projection(projection4);
+                    
+                    const svg4 = d3.select("#d3-map-container-4").append("svg")
+                        .attr("width", "100%").attr("height", "100%").attr("viewBox", "0 0 520 560");
+
+                    svg4.append("g").selectAll("path")
+                        .data(africaFeatures).join("path")
+                        .attr("d", path4).attr("class", "country-path")
+                        .style("fill", (d, i) => mapColors[i % 6])
+                        .attr("id", d => `country-${d.id}`)
+                        .on("click", function(event, d) {
+                            showCountryDetails(d.id, d.properties.name, this);
+                        });
+
+                    document.getElementById('loading-4').style.display = 'none';
+                })
+                .catch(function(error) {
+                    console.error("지리 데이터 로딩 실패:", error);
+                    alert("지도 데이터를 불러오는 중 문제가 발생했습니다. 인터넷 연결을 확인해 주세요.");
+                });
+        }
+
+        // 클릭된 국가의 DB 연동 렌더러
+        function showCountryDetails(isoCode, engName, element) {
+            document.querySelectorAll('.country-path').forEach(p => p.classList.remove('selected'));
+            element.classList.add('selected');
+
+            let data = countryDb[isoCode];
+            
+            // DB에 상세 기록이 없는 소형 국가는 기본 대체 정보 출력
+            if (!data) {
+                data = {
+                    name: engName,
+                    flag: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e0/Flag_of_the_African_Union.svg/320px-Flag_of_the_African_Union.svg.png",
+                    area: "지리 통계 업데이트 중",
+                    pop: "인구 통계 업데이트 중",
+                    climate: "세부 지리 데이터 및 기후 특성 분석 대기 중"
+                };
+            }
+
+            const panel = document.getElementById('country-info-panel');
+            panel.innerHTML = `
+                <div class="info-header">
+                    <img class="info-flag-img" src="${data.flag}" alt="${data.name} 국기 이미지" onerror="this.src='https://upload.wikimedia.org/wikipedia/commons/thumb/e/e0/Flag_of_the_African_Union.svg/320px-Flag_of_the_African_Union.svg.png'">
+                    <div class="info-title">
+                        <h3>${data.name}</h3>
+                        <p>Official Geographical Profile (${isoCode})</p>
+                    </div>
+                </div>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">국토 총면적</div>
+                        <div class="info-value">${data.area}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">국가 인구 규모</div>
+                        <div class="info-value">${data.pop}</div>
+                    </div>
+                    <div class="info-item" style="grid-column: span 2;">
+                        <div class="info-label">기후 특성 및 주요 자연환경</div>
+                        <div class="info-value">${data.climate}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        window.onload = function() {
+            renderTrainQuiz();
+            initD3Map();
+        };
+    </script>
+</body>
+</html>
