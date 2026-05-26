@@ -428,7 +428,7 @@
             const africaIso = ["DZA","AGO","BEN","BWA","BFA","BDI","CMR","CPV","CAF","TCD","COM","COD","DJI","EGY","GNQ","ERI","SWZ","ETH","GAB","GMB","GHA","GIN","GNB","CIV","KEN","LSO","LBR","LBY","MDG","MWI","MLI","MRT","MUS","MAR","MOZ","NAM","NER","NGA","COG","RWA","STP","SEN","SYC","SLE","SOM","ZAF","SSD","SDN","TZA","TGO","TUN","UGA","ZMB","ZWE","ESH"];
 
             // 공인된 국가별 경계 데이터(GeoJSON)를 CDN을 통해 안전하게 Fetch
-            d3.json("https://raw.githubusercontent.com/datasets/geo-boundaries-world-110m/master/countries.geojson")
+            d3.json("https://cdn.jsdelivr.net/gh/johan/world.geo.json@master/countries.geo.json")
                 .then(function(data) {
                     const africaFeatures = data.features.filter(d => africaIso.includes(d.id));
 
